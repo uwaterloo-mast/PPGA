@@ -4,6 +4,7 @@ from multiprocessing import Pipe, Process
 from pabulib_parser import *
 import csv
 from tqdm import tqdm
+import warnings
 
 
 class UtilityMaximizer:
@@ -14,6 +15,7 @@ class UtilityMaximizer:
 
         self.x = cp.Variable(self.m, nonneg=True)   # allocation
 
+        # self.c = cp.Parameter(value=capacity, nonneg=True)  # capacity
         self.s = cp.Parameter(self.m, value=items_sizes/capacity, nonneg=True)  # size
         self.u = cp.Parameter(self.m)  # utility vector
 
@@ -44,6 +46,7 @@ class AGMaximizer:
         self.x = cp.Variable(self.m, nonneg=True)
 
         # Parameters
+        # self.c = cp.Parameter(value=capacity, nonneg=True)  # capacity
         self.s = cp.Parameter(self.m, value=items_sizes/capacity, nonneg=True)  # size
 
         self.u = cp.Parameter(self.m)  # utilities
@@ -267,7 +270,8 @@ def run_scenarios(final_data_folder='final_data', final_results_folder='final_re
                    'min_pos_u', 'max_pos_u', 'avg_pos_u', 'var_pos_u',
                    'core_sw', 'core_min_sw_si', 'core_max_sw_si', 'core_avg_sw_si', 'core_var_sw_si',
                    'ppga_sw', 'ppga_min_sw_si', 'ppga_max_sw_si', 'ppga_avg_sw_si', 'ppga_var_sw_si',
-                   'ppga_capacity_violation', 'ppga_core_z_distance']
+                   'ppga_capacity_violation', 'ppga_core_z_distance',
+                   'ppga_core_sw_avg', 'ppga_core_sw_var']
 
     results = []
     for scenario in glob.glob(final_data_dir + '/*'):
@@ -328,12 +332,15 @@ def run_scenarios(final_data_folder='final_data', final_results_folder='final_re
         ppga_var_sw_si = 0
 
         z_list = []
+        ppga_core_sw_list = []
 
         for i in range(num_runs):
             print('Running PPGA for experiment number: ' + str(i))
             z = run_admm(num_workers, num_steps, capacity, items_sizes, rho,
                          utility_matrix, variance, find_core=False)
-            ppga_sw += np.sum(z * utility_matrix) / num_agents
+            ppga_sw_cur = np.sum(z * utility_matrix) / num_agents
+            ppga_core_sw_list.append(ppga_sw_cur / core_sw)
+            ppga_sw += ppga_sw_cur
             # print('Social welfare for PPGA: ' + str(core_sw))
             # print('Capacity violation for PPGA: ' + str(items_sizes @ core_z - capacity))
             ppga_sw_u = np.sum(z * utility_matrix, axis=1)
@@ -357,7 +364,9 @@ def run_scenarios(final_data_folder='final_data', final_results_folder='final_re
                 'ppga_max_sw_si': ppga_max_sw_si / num_runs, 'ppga_avg_sw_si': ppga_avg_sw_si / num_runs,
                 'ppga_var_sw_si': ppga_var_sw_si / num_runs,
                 'ppga_capacity_violation': ppga_capacity_violation / num_runs,
-                'ppga_core_z_distance': ppga_core_z_distance / num_runs}
+                'ppga_core_z_distance': ppga_core_z_distance / num_runs,
+                'ppga_core_sw_avg': np.mean(ppga_core_sw_list),
+                'ppga_core_sw_var': np.var(ppga_core_sw_list)}
 
         assert len(data) == len(field_names)
         results.append(data)
@@ -370,5 +379,7 @@ def run_scenarios(final_data_folder='final_data', final_results_folder='final_re
 
 
 if __name__ == '__main__':
-    run_scenarios(final_data_folder='final_data', final_results_folder='final_results',
-                  num_runs=50, num_workers=256)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        run_scenarios(final_data_folder='final_data', final_results_folder='final_results',
+                      num_runs=50, num_workers=250)

@@ -41,7 +41,7 @@ def process_raw_data(raw_data_folder='raw_data', final_data_folder='final_data')
                         votes[row[0]][key.strip()] = row[it + 1].strip()
                     utility_matrix[num_voters] = np.zeros(num_projects)
                     for p in votes[row[0]]['vote'].split(','):
-                        utility_matrix[num_voters][projects[p]['idx']] = np.random.uniform(0.85, 1.15, 1)
+                        utility_matrix[num_voters][projects[p]['idx']] = 1
                     num_voters += 1
 
             if not os.path.exists(out_path):
